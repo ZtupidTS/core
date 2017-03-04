@@ -495,10 +495,43 @@ class FederatedShareProviderTest extends \Test\TestCase {
 			->setNode($node2);
 		$this->provider->create($share2);
 
-		$shares = $this->provider->getAllSharesBy('sharedBy', \OCP\Share::SHARE_TYPE_REMOTE, [$node2->getId()], false);
+		$shares = $this->provider->getAllSharesBy('sharedBy', [\OCP\Share::SHARE_TYPE_REMOTE], [$node2->getId()], false);
 
 		$this->assertCount(1, $shares);
 		$this->assertEquals(43, $shares[0]->getNodeId());
+	}
+
+	public function testGetAllSharedByWithReshares() {
+		$node = $this->createMock('\OCP\Files\File');
+		$node->method('getId')->willReturn(42);
+		$node->method('getName')->willReturn('myFile');
+
+		$this->tokenHandler->method('generateToken')->willReturn('token');
+		$this->notifications
+			->method('sendRemoteShare')
+			->willReturn(true);
+
+		$this->rootFolder->expects($this->never())->method($this->anything());
+
+		$share = $this->shareManager->newShare();
+		$share->setSharedWith('user@server.com')
+			->setSharedBy('shareOwner')
+			->setShareOwner('shareOwner')
+			->setPermissions(19)
+			->setNode($node);
+		$this->provider->create($share);
+
+		$share2 = $this->shareManager->newShare();
+		$share2->setSharedWith('user2@server.com')
+			->setSharedBy('sharedBy')
+			->setShareOwner('shareOwner')
+			->setPermissions(19)
+			->setNode($node);
+		$this->provider->create($share2);
+
+		$shares = $this->provider->getAllSharesBy('shareOwner', [\OCP\Share::SHARE_TYPE_REMOTE], [$node->getId()], true);
+
+		$this->assertCount(2, $shares);
 	}
 
 	public function testGetSharedBy() {

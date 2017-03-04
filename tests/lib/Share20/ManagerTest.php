@@ -1946,6 +1946,111 @@ class ManagerTest extends \Test\TestCase {
 		$manager->createShare($share);
 	}
 
+	public function testGetAllSharesBy() {
+		$share1 = $this->manager->newShare();
+		$share2 = $this->manager->newShare();
+		$share3 = $this->manager->newShare();
+
+
+		$node = $this->createMock('OCP\Files\Folder');
+		$node->expects($this->any())
+			->method('getId')
+			->will($this->returnValue(0));
+
+		$nodes = [$node->getId()];
+
+		for ($i = 1; $i <= 201; $i++) {
+			$node = $this->createMock('OCP\Files\File');
+			$node->expects($this->any())
+				->method('getId')
+				->will($this->returnValue($i));
+			array_push($nodes, $node->getId());
+		}
+
+		// Test chunking here
+		$this->defaultProvider->expects($this->any())
+			->method('getAllSharesBy')
+			->with(
+				$this->equalTo('user'),
+				$this->anything(),
+				$this->anything(),
+				$this->equalTo(true)
+			)->will($this->onConsecutiveCalls(
+				array_fill(0, 100, $share1),
+				array_fill(0, 100, $share2),
+				array_fill(0, 1, $share3)));
+
+		$shares = $this->manager->getAllSharesBy('user', [\OCP\Share::SHARE_TYPE_USER], $nodes, true);
+
+		$this->assertCount(201, $shares);
+		$this->assertSame($share1, $shares[0]);
+		$this->assertSame($share2, $shares[100]);
+		$this->assertSame($share3, $shares[200]);
+	}
+
+	public function testGetAllSharesByExpiration() {
+		$manager = $this->createManagerMock()
+			->setMethods(['deleteShare'])
+			->getMock();
+
+		$share1 = $this->manager->newShare();
+		$share2 = $this->manager->newShare();
+
+		$shareExpired = $this->createMock(IShare::class);
+		$shareExpired->method('getShareType')->willReturn(\OCP\Share::SHARE_TYPE_LINK);
+		$shareExpired->method('getNodeId')->willReturn(201);
+		$today = new \DateTime();
+		$shareExpired->method('getExpirationDate')->willReturn($today);
+
+
+		$node = $this->createMock('OCP\Files\Folder');
+		$node->expects($this->any())
+			->method('getId')
+			->will($this->returnValue(0));
+
+		$nodes = [$node->getId()];
+
+		for ($i = 1; $i <= 201; $i++) {
+			$node = $this->createMock('OCP\Files\File');
+			$node->expects($this->any())
+				->method('getId')
+				->will($this->returnValue($i));
+			array_push($nodes, $node->getId());
+		}
+
+		// Test chunking here
+		$this->defaultProvider->expects($this->any())
+			->method('getAllSharesBy')
+			->with(
+				$this->equalTo('user'),
+				$this->anything(),
+				$this->anything(),
+				$this->equalTo(true)
+			)->will($this->onConsecutiveCalls(
+				array_fill(0, 100, $share1),
+				array_fill(0, 100, $share2),
+				array_fill(0, 1, $shareExpired)));
+
+		$manager->expects($this->any())
+			->method('deleteShare')
+			->will($this->throwException(new \OCP\Files\NotFoundException));
+
+		$shares = $manager->getAllSharesBy('user', [\OCP\Share::SHARE_TYPE_USER], $nodes, true);
+
+		// One share whould be expired
+		$this->assertCount(200, $shares);
+		$this->assertSame($share1, $shares[0]);
+		$this->assertSame($share2, $shares[100]);
+		$this->assertNotContains($shareExpired, $shares);
+	}
+
+	/**
+	 * @expectedException \InvalidArgumentException
+	 */
+	public function testGetAllSharesByException() {
+		$shares = $this->manager->getAllSharesBy('user', [\OCP\Share::SHARE_TYPE_USER], [], true);
+	}
+
 	public function testGetSharesBy() {
 		$share = $this->manager->newShare();
 

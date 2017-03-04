@@ -903,6 +903,8 @@ class Manager implements IManager {
 		foreach ($providerIdMap as $providerId => $shareTypeArray) {
 			// Get provider from cache
 			$provider = $this->factory->getProvider($providerId);
+			
+			// Batch Node IDs into chunks of 100 and get all shares for these nodes
 			$batchNodeIDs = array_chunk($nodeIDs, 100);
 			foreach ($batchNodeIDs as $nodeIDsChunk) {
 				$queriedShares = $provider->getAllSharesBy($userId, $shareTypeArray, $nodeIDsChunk, $reshares);
